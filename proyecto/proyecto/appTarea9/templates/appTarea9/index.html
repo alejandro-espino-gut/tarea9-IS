@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Tarea 9 – Demo HTMX</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f6fb;
+      color: #1e1e2e;
+      padding: 2rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.8rem; margin-bottom: .25rem; }
+    h2 { font-size: 1.1rem; color: #374151; margin-bottom: .75rem; }
+    p.desc { color: #6b7280; font-size: .9rem; margin-bottom: 1rem; line-height: 1.5; }
+    code { background: #f1f0ff; color: #4338ca; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      border-left: 4px solid #6366f1;
+    }
+    .tag {
+      display: inline-block;
+      background: #eef2ff;
+      color: #4338ca;
+      font-family: monospace;
+      font-size: .8rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: .6rem;
+    }
+
+    button {
+      cursor: pointer; border: none; border-radius: 8px;
+      padding: .5rem 1.1rem; font-size: .9rem; font-weight: 600;
+      transition: opacity .15s;
+    }
+    button:hover { opacity: .85; }
+    .btn-primary  { background: #6366f1; color: #fff; }
+    .btn-success  { background: #10b981; color: #fff; }
+    .btn-danger   { background: #ef4444; color: #fff; }
+    .btn-warning  { background: #f59e0b; color: #1a1a1a; }
+    .btn-gray     { background: #e5e7eb; color: #374151; }
+
+    input[type=text] {
+      border: 1px solid #d1d5db; border-radius: 8px;
+      padding: .45rem .8rem; font-size: .9rem; outline: none;
+    }
+    input[type=text]:focus { border-color: #6366f1; }
+
+    .lista-tareas { list-style: none; padding: 0; }
+    .tarea-item {
+      padding: .5rem .75rem; border-radius: 8px; margin-bottom: .4rem;
+      background: #f9fafb; border: 1px solid #e5e7eb;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .tarea-item.hecha { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .sin-resultados { color: #9ca3af; font-style: italic; padding: .5rem; }
+    .fila { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-top: .75rem; }
+
+    /* Spinner */
+    #spinner { display: none; align-items: center; gap: .5rem; color: #6366f1; font-size: .9rem; }
+    .htmx-request #spinner { display: flex !important; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .rueda {
+      width: 20px; height: 20px;
+      border: 3px solid #c7d2fe; border-top-color: #6366f1;
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+
+    /* Header OOB */
+    .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    #contador-oob {
+      background: #6366f1; color: #fff;
+      padding: .3rem .8rem; border-radius: 999px;
+      font-size: .85rem; font-weight: 600;
+    }
+    .likes-zona { margin-top: .75rem; font-size: .9rem; color: #6b7280; }
+    #contador-likes { font-weight: 700; color: #ef4444; }
+  </style>
+</head>
+<body>
+
+<div class="header-bar">
+  <div>
+    <h1>Tarea 9 – Demo HTMX</h1>
+    <p style="color:#6b7280;font-size:.9rem;">5 atributos en un solo proyecto Django</p>
+  </div>
+  <span id="contador-oob">0 / {{ tareas|length }} completadas</span>
+</div>
+
+
+<!-- 1. hx-swap="none" -->
+<div class="card">
+  <span class="tag">hx-swap="none"</span>
+  <h2>1. Like sin tocar el DOM</h2>
+  <p class="desc">
+    Envía un <code>POST</code> al servidor que incrementa el contador en memoria.
+    <code>hx-swap="none"</code> hace que HTMX descarte completamente la respuesta:
+    <strong>no reemplaza ningún fragmento del DOM</strong>. Útil para registrar
+    eventos, votos o auditoría sin cambios visuales inmediatos.
+  </p>
+  <button
+    class="btn-danger"
+    hx-post="{% url 'appTarea9:dar_like' %}"
+    hx-swap="none"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    onclick="document.getElementById('contador-likes').textContent =
+             parseInt(document.getElementById('contador-likes').textContent) + 1"
+  >❤️ Me gusta</button>
+  <div class="likes-zona">
+    Likes registrados en servidor: <span id="contador-likes">{{ likes }}</span>
+  </div>
+</div>
+
+
+<!-- 2. hx-indicator -->
+<div class="card">
+  <span class="tag">hx-indicator</span>
+  <h2>2. Spinner de carga (petición lenta de 2 s)</h2>
+  <p class="desc">
+    <code>hx-indicator="#spinner"</code> le dice a HTMX qué elemento mostrar
+    mientras la petición está en vuelo. El spinner tiene <code>display:none</code>
+    por defecto; HTMX aplica la clase <code>.htmx-request</code> solo durante
+    la espera y la quita al terminar.
+  </p>
+  <div class="fila">
+    <button
+      class="btn-primary"
+      hx-get="{% url 'appTarea9:cargar_lento' %}"
+      hx-target="#zona-lenta"
+      hx-swap="innerHTML"
+      hx-indicator="#spinner"
+    >⬇️ Cargar lista (espera 2 s)</button>
+    <div id="spinner"><div class="rueda"></div> Cargando…</div>
+  </div>
+  <div id="zona-lenta" style="margin-top:1rem;">
+    <p style="color:#9ca3af;font-style:italic;">Aquí aparecerán los elementos cargados.</p>
+  </div>
+</div>
+
+
+<!-- 3. hx-vals -->
+<div class="card">
+  <span class="tag">hx-vals</span>
+  <h2>3. Agregar tarea con prioridad extra</h2>
+  <p class="desc">
+    <code>hx-vals='{"prioridad": "alta"}'</code> inyecta el campo
+    <code>prioridad</code> en el <code>POST</code> sin necesidad de un
+    <code>&lt;input hidden&gt;</code>. Django lo recibe en <code>request.POST</code>
+    junto con los demás campos visibles del formulario.
+  </p>
+  <div class="fila">
+    <input type="text" id="texto-vals" name="texto_vals"
+           placeholder="Nombre de la nueva tarea…" style="flex:1">
+    <button
+      class="btn-warning"
+      hx-post="{% url 'appTarea9:agregar_prioridad' %}"
+      hx-target="#lista-vals"
+      hx-swap="beforeend"
+      hx-include="#texto-vals"
+      hx-vals='{"prioridad": "alta"}'
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    >🔴 Alta</button>
+    <button
+      class="btn-gray"
+      hx-post="{% url 'appTarea9:agregar_prioridad' %}"
+      hx-target="#lista-vals"
+      hx-swap="beforeend"
+      hx-include="#texto-vals"
+      hx-vals='{"prioridad": "normal"}'
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    >🟡 Normal</button>
+  </div>
+  <ul id="lista-vals" class="lista-tareas" style="margin-top:1rem;">
+    <li class="tarea-item" style="color:#9ca3af;font-style:italic;">
+      Las tareas nuevas aparecerán aquí (beforeend).
+    </li>
+  </ul>
+</div>
+
+
+<!-- 4. hx-include -->
+<div class="card">
+  <span class="tag">hx-include</span>
+  <h2>4. Búsqueda con campo externo al disparador</h2>
+  <p class="desc">
+    El <code>&lt;input&gt;</code> con id <code>campo-busqueda</code> está suelto
+    en el DOM — sin estar dentro del botón ni en un <code>&lt;form&gt;</code>.
+    <code>hx-include="#campo-busqueda"</code> le indica a HTMX que serialice
+    ese input y lo incluya en la petición <code>GET</code>.
+  </p>
+  <div class="fila">
+    <input type="text" id="campo-busqueda" name="q"
+           placeholder="Escribe para buscar…" style="flex:1">
+    <button
+      class="btn-success"
+      hx-get="{% url 'appTarea9:buscar' %}"
+      hx-target="#resultados-busqueda"
+      hx-swap="innerHTML"
+      hx-include="#campo-busqueda"
+    >🔍 Buscar</button>
+  </div>
+  <div id="resultados-busqueda" style="margin-top:1rem;">
+    <ul class="lista-tareas">
+      {% for t in tareas %}
+        <li class="tarea-item {% if t.hecha %}hecha{% endif %}">{{ t.texto }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+
+<!-- 5. hx-swap-oob -->
+<div class="card">
+  <span class="tag">hx-swap-oob</span>
+  <h2>5. Actualización fuera de banda (OOB)</h2>
+  <p class="desc">
+    Al completar una tarea, Django devuelve <strong>dos fragmentos HTML</strong>
+    en una sola respuesta: el <code>&lt;li&gt;</code> actualizado (target normal)
+    y un <code>&lt;span hx-swap-oob="innerHTML"&gt;</code> que HTMX ubica por su
+    <code>id</code> y reemplaza en el encabezado de la página, sin importar dónde
+    esté en el DOM.
+  </p>
+  <ul class="lista-tareas">
+    {% for t in tareas %}
+    <li id="tarea-{{ t.id }}" class="tarea-item {% if t.hecha %}hecha{% endif %}">
+      {% if t.hecha %}✅{% else %}⬜{% endif %} {{ t.texto }}
+      {% if not t.hecha %}
+        <button
+          class="btn-success"
+          style="margin-left:auto;padding:.3rem .7rem;font-size:.8rem;"
+          hx-post="{% url 'appTarea9:completar_tarea' t.id %}"
+          hx-target="#tarea-{{ t.id }}"
+          hx-swap="outerHTML"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        >Completar</button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+</body>
+</html>
